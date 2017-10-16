@@ -47,6 +47,8 @@ public final class CameraManager {
   private static final int MIN_FRAME_HEIGHT = 240;
   private static final int MAX_FRAME_WIDTH = 1200; // = 5/8 * 1920
   private static final int MAX_FRAME_HEIGHT = 675; // = 5/8 * 1080
+  private static final double viewportFractionX = 0.9;
+  private static final double viewportFractionY = 0.3;
 
   private final Context context;
   private final CameraConfigurationManager configManager;
@@ -237,8 +239,8 @@ public final class CameraManager {
         return null;
       }
 
-      int width = findDesiredDimensionInRange(screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH);
-      int height = findDesiredDimensionInRange(screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT);
+      int width = findDesiredDimensionInRange(screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH, viewportFractionX);
+      int height = findDesiredDimensionInRange(screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT, viewportFractionY);
 
       int leftOffset = (screenResolution.x - width) / 2;
       int topOffset = (screenResolution.y - height) / 2;
@@ -248,15 +250,15 @@ public final class CameraManager {
     return framingRect;
   }
   
-  private static int findDesiredDimensionInRange(int resolution, int hardMin, int hardMax) {
-    int dim = 5 * resolution / 8; // Target 5/8 of each dimension
+  private static int findDesiredDimensionInRange(int resolution, int hardMin, int hardMax, double viewportFraction) {
+    double dim = resolution * viewportFraction;
     if (dim < hardMin) {
       return hardMin;
     }
     if (dim > hardMax) {
       return hardMax;
     }
-    return dim;
+    return new Double(dim).intValue();
   }
 
   /**
