@@ -254,6 +254,14 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
           }
         }
 
+        if (intent.hasExtra(Intents.Scan.VIEWPORT_FRACTION_X) && intent.hasExtra(Intents.Scan.VIEWPORT_FRACTION_Y)) {
+          double viewportFractionX = intent.getDoubleExtra(Intents.Scan.VIEWPORT_FRACTION_X, 0);
+          double viewportFractionY = intent.getDoubleExtra(Intents.Scan.VIEWPORT_FRACTION_Y, 0);
+          if (viewportFractionX > 0 && viewportFractionY > 0) {
+            cameraManager.setViewportFractions(viewportFractionX, viewportFractionY);
+          }
+        }
+
         if (intent.hasExtra(Intents.Scan.CAMERA_ID)) {
           int cameraId = intent.getIntExtra(Intents.Scan.CAMERA_ID, OpenCameraInterface.NO_REQUESTED_CAMERA);
           if (cameraId >= 0) {

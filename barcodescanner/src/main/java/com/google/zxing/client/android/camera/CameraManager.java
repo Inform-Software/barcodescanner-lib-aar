@@ -47,8 +47,8 @@ public final class CameraManager {
   private static final int MIN_FRAME_HEIGHT = 240;
   private static final int MAX_FRAME_WIDTH = 1200; // = 5/8 * 1920
   private static final int MAX_FRAME_HEIGHT = 675; // = 5/8 * 1080
-  private static final double viewportFractionX = 0.9;
-  private static final double viewportFractionY = 0.3;
+  
+  
 
   private final Context context;
   private final CameraConfigurationManager configManager;
@@ -62,7 +62,11 @@ public final class CameraManager {
   private int requestedCameraId = OpenCameraInterface.NO_REQUESTED_CAMERA;
   private int requestedFramingRectWidth;
   private int requestedFramingRectHeight;
+  private double viewportFractionX = 0.625;
+  private double viewportFractionY = 0.625;
   private WindowManager windowManager;
+
+
 
   /**
    * Preview frames are delivered here, which we pass on to the registered handler. Make sure to
@@ -345,6 +349,18 @@ public final class CameraManager {
     } else {
       requestedFramingRectWidth = width;
       requestedFramingRectHeight = height;
+    }
+  }
+
+  public synchronized void setViewportFractions(double x, double y) {
+    if (initialized) {
+      framingRect = getFramingRect();
+
+      Log.d(TAG, "Calculated manual framing rect: " + framingRect);
+      framingRectInPreview = null;
+    } else {
+      viewportFractionX = x; 
+      viewportFractionY = y; 
     }
   }
 
