@@ -217,4 +217,26 @@
           android:drawableStart="@drawable/toggle_torch"
           android:visibility="invisible"/>
 
+  <ImageButton
+      android:id="@+id/btn_Add"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_margin="2dp"
+      android:layout_gravity="bottom|left"
+      android:onClick="onAddPressed"
+      android:background="@drawable/icon_check"
+      android:visibility="invisible"
+  />
+
+  <ImageButton
+      android:id="@+id/btn_Cancel"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_margin="2dp"
+      android:layout_gravity="bottom|right"
+      android:onClick="onCancelPressed"
+      android:background="@drawable/icon_cancel"
+      android:visibility="invisible"
+  />
+
 </merge>

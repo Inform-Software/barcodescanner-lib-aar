@@ -43,10 +43,10 @@ public final class CameraManager {
 
   private static final String TAG = CameraManager.class.getSimpleName();
 
-  private static final int MIN_FRAME_WIDTH = 240;
-  private static final int MIN_FRAME_HEIGHT = 240;
-  private static final int MAX_FRAME_WIDTH = 1200; // = 5/8 * 1920
-  private static final int MAX_FRAME_HEIGHT = 675; // = 5/8 * 1080
+  private static final int MIN_FRAME_WIDTH = 50;
+  private static final int MIN_FRAME_HEIGHT = 50;
+  private static final int MAX_FRAME_WIDTH = 5000; // = 5/8 * 1920
+  private static final int MAX_FRAME_HEIGHT = 5000; // = 5/8 * 1080
   
   
 
@@ -64,6 +64,7 @@ public final class CameraManager {
   private int requestedFramingRectHeight;
   private double viewportFractionX = 0.625;
   private double viewportFractionY = 0.625;
+  private double viewportFractionSquare = 0;
   private WindowManager windowManager;
 
 
@@ -243,8 +244,21 @@ public final class CameraManager {
         return null;
       }
 
-      int width = findDesiredDimensionInRange(screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH, viewportFractionX);
-      int height = findDesiredDimensionInRange(screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT, viewportFractionY);
+      int width=0;
+      int height=0;
+      if (this.viewportFractionSquare > 0) {
+        // use the smaller dimension to calc the extend of a square viewport
+        if (screenResolution.x >= screenResolution.y) {
+          height = findDesiredDimensionInRange (screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT, viewportFractionSquare);
+          width = height;
+        } else {
+          width = findDesiredDimensionInRange (screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH, viewportFractionSquare);
+          height = width;
+        }
+      } else {
+        width = findDesiredDimensionInRange (screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH, viewportFractionX);
+        height = findDesiredDimensionInRange (screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT, viewportFractionY);
+      }
 
       int leftOffset = (screenResolution.x - width) / 2;
       int topOffset = (screenResolution.y - height) / 2;
@@ -361,6 +375,17 @@ public final class CameraManager {
     } else {
       viewportFractionX = x; 
       viewportFractionY = y; 
+    }
+  }
+
+  public synchronized void setViewportFractionSquare(double square) {
+    if (initialized) {
+      framingRect = getFramingRect();
+
+      Log.d(TAG, "Calculated manual framing rect: " + framingRect);
+      framingRectInPreview = null;
+    } else {
+      viewportFractionSquare = square;
     }
   }
 

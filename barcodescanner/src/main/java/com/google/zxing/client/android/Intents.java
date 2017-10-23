@@ -100,8 +100,9 @@ public final class Intents {
     public static final String WIDTH                         = "SCAN_WIDTH";
     public static final String HEIGHT                        = "SCAN_HEIGHT";
 
-    public static final String VIEWPORT_FRACTION_X = "VIEWPORT_FRACTION_X";
-    public static final String VIEWPORT_FRACTION_Y = "VIEWPORT_FRACTION_Y";
+    public static final String VIEWPORT_FRACTION_X           = "VIEWPORT_FRACTION_X";
+    public static final String VIEWPORT_FRACTION_Y           = "VIEWPORT_FRACTION_Y";
+    public static final String VIEWPORT_FRACTION_SQUARE      = "VIEWPORT_FRACTION_SQUARE";
 
     /**
      * Desired duration in milliseconds for which to pause after a successful scan before returning to the calling
@@ -124,10 +125,37 @@ public final class Intents {
     public static final String RESULT                        = "SCAN_RESULT";
 
     /**
+     * multi-scan mode: how many barcodes have been scanned? barcodes will be returned as comma separated list in
+     * "RESULT"
+     */
+    public static final String RESULT_COUNT                  = "RESULT_COUNT";
+
+    /**
+     * scan multiple barcodes one after another without leaving the barcode scanner view.
+     */
+    public static final String MULTI_SCAN                    = "MULTI_SCAN";
+
+    /**
      * Call {@link android.content.Intent#getStringExtra(String)} with {@link #RESULT_FORMAT} to determine which barcode
      * format was found. See {@link com.google.zxing.BarcodeFormat} for possible values.
      */
     public static final String RESULT_FORMAT                 = "SCAN_RESULT_FORMAT";
+
+    /**
+     * how did the user finish scanning, ie. "CLOSE / FINISH" or "ABORT / CANCEL" values can be
+     * {@link #RESULT_ACTION_CLOSE} or {@link #RESULT_ACTION_ABORT}
+     */
+    public static final String RESULT_ACTION                 = "RESULT_ACTION";
+
+    /**
+     * how did the user finish scanning, -> "CLOSE / FINISH" (success)
+     */
+    public static final String RESULT_ACTION_CLOSE           = "RESULT_ACTION_CLOSE";
+
+    /**
+     * how did the user finish scanning, -> "ABORT / CANCEL" (no success)
+     */
+    public static final String RESULT_ACTION_ABORT           = "RESULT_ACTION_ABORT";
 
     /**
      * Call {@link android.content.Intent#getStringExtra(String)} with {@link #RESULT_UPC_EAN_EXTENSION} to return the

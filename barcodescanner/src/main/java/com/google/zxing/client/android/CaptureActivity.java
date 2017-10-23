@@ -21,6 +21,7 @@ import android.content.res.Configuration;
 import android.hardware.Camera;
 import android.support.v4.content.LocalBroadcastManager;
 import android.widget.Button;
+import android.widget.ImageButton;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.DecodeHintType;
 import com.google.zxing.Result;
@@ -68,9 +69,11 @@ import android.widget.Toast;
 
 import java.io.IOException;
 import java.text.DateFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 import barcodescanner.xservices.nl.barcodescanner.R;
@@ -124,6 +127,25 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   private InactivityTimer                             inactivityTimer;
   private BeepManager                                 beepManager;
   private AmbientLightManager                         ambientLightManager;
+
+  /**
+   * Finish multi-scan ("add" barcodes)
+   */
+  private ImageButton                                 btn_Add;
+  /**
+   * Cancel mutli-scan
+   */
+  private ImageButton                                 btn_Cancel;
+
+  /**
+   * result of multi-scan. comma seperated list of barcodes.
+   */
+  private final List<String>                          results                           = new ArrayList<String> ();
+
+  /**
+   * multi-scan mode?
+   */
+  private boolean                                     multiScan                         = false;
 
   ViewfinderView getViewfinderView () {
     return viewfinderView;
@@ -196,6 +218,9 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     flipButton = (Button) findViewById (R.id.flip_button);
     torchButton = (Button) findViewById (R.id.torch_button);
 
+    btn_Add = (ImageButton) findViewById (R.id.btn_Add);
+    btn_Cancel = (ImageButton) findViewById (R.id.btn_Cancel);
+
     handler = null;
     lastResult = null;
 
@@ -214,6 +239,12 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
+    // multi-scan mode?
+    if (getIntent ().getBooleanExtra (Intents.Scan.MULTI_SCAN, false)) {
+      setMultiScan (true);
+    } else {
+      setMultiScan (false);
+    }
     resetStatusView ();
 
     beepManager.updatePrefs ();
@@ -254,11 +285,16 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
           }
         }
 
-        if (intent.hasExtra(Intents.Scan.VIEWPORT_FRACTION_X) && intent.hasExtra(Intents.Scan.VIEWPORT_FRACTION_Y)) {
-          double viewportFractionX = intent.getDoubleExtra(Intents.Scan.VIEWPORT_FRACTION_X, 0);
-          double viewportFractionY = intent.getDoubleExtra(Intents.Scan.VIEWPORT_FRACTION_Y, 0);
+        if (intent.hasExtra (Intents.Scan.VIEWPORT_FRACTION_X) && intent.hasExtra (Intents.Scan.VIEWPORT_FRACTION_Y)) {
+          double viewportFractionX = intent.getDoubleExtra (Intents.Scan.VIEWPORT_FRACTION_X, 0);
+          double viewportFractionY = intent.getDoubleExtra (Intents.Scan.VIEWPORT_FRACTION_Y, 0);
           if (viewportFractionX > 0 && viewportFractionY > 0) {
-            cameraManager.setViewportFractions(viewportFractionX, viewportFractionY);
+            cameraManager.setViewportFractions (viewportFractionX, viewportFractionY);
+          }
+        } else if (intent.hasExtra (Intents.Scan.VIEWPORT_FRACTION_SQUARE)) {
+          double viewportFractionSquare = intent.getDoubleExtra (Intents.Scan.VIEWPORT_FRACTION_SQUARE, 0);
+          if (viewportFractionSquare > 0) {
+            cameraManager.setViewportFractionSquare (viewportFractionSquare);
           }
         }
 
@@ -695,6 +731,23 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
   }
 
+  private long getResultDurationMS () {
+    long result = DEFAULT_INTENT_RESULT_DURATION_MS;
+    if (getIntent () != null) {
+      if (getIntent ().hasExtra (Intents.Scan.RESULT_DISPLAY_DURATION_MS)) {
+        final String durationStr = getIntent ().getStringExtra (Intents.Scan.RESULT_DISPLAY_DURATION_MS);
+        if (durationStr != null) {
+          try {
+            result = Long.parseLong (durationStr);
+          } catch (NumberFormatException e) {
+            Log.e (TAG, "Could not parse " + durationStr + " to Long", e);
+          }
+        }
+      }
+    }
+    return (result);
+  }
+
   // Briefly show the contents of the barcode, then handle the result outside Barcode Scanner.
   private void handleDecodeExternally (Result rawResult,
                                        ResultHandler resultHandler,
@@ -704,19 +757,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       viewfinderView.drawResultBitmap (barcode);
     }
 
-    long resultDurationMS = DEFAULT_INTENT_RESULT_DURATION_MS;
-    if (getIntent () != null) {
-      if (getIntent ().hasExtra (Intents.Scan.RESULT_DISPLAY_DURATION_MS)) {
-        final String durationStr = getIntent ().getStringExtra (Intents.Scan.RESULT_DISPLAY_DURATION_MS);
-        if (durationStr != null) {
-          try {
-            resultDurationMS = Long.parseLong (durationStr);
-          } catch (NumberFormatException e) {
-            Log.e (TAG, "Could not parse " + durationStr + " to Long", e);
-          }
-        }
-      }
-    }
+    long resultDurationMS = getResultDurationMS ();
 
     if (resultDurationMS > 0) {
       String rawResultString = String.valueOf (rawResult);
@@ -732,42 +773,33 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     }
 
     if (source == IntentSource.NATIVE_APP_INTENT) {
+      String currentResult = rawResult.toString ();
+      results.add (currentResult);
+      if (isMultiScan ()) {
+        // now display "ADD" (finish) button, after first barcode has been scanned
+        btn_Add.setVisibility (View.VISIBLE);
+        // restart preview
+        btn_Add.postDelayed (new Runnable () {
 
-      // Hand back whatever action they requested - this can be changed to Intents.Scan.ACTION when
-      // the deprecated intent is retired.
-      Intent intent = new Intent (getIntent ().getAction ());
-      intent.addFlags (Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET);
-      intent.putExtra (Intents.Scan.RESULT, rawResult.toString ());
-      intent.putExtra (Intents.Scan.RESULT_FORMAT, rawResult.getBarcodeFormat ().toString ());
-      byte[] rawBytes = rawResult.getRawBytes ();
-      if (rawBytes != null && rawBytes.length > 0) {
-        intent.putExtra (Intents.Scan.RESULT_BYTES, rawBytes);
-      }
-      Map<ResultMetadataType, ?> metadata = rawResult.getResultMetadata ();
-      if (metadata != null) {
-        if (metadata.containsKey (ResultMetadataType.UPC_EAN_EXTENSION)) {
-          intent.putExtra (Intents.Scan.RESULT_UPC_EAN_EXTENSION,
-                           metadata.get (ResultMetadataType.UPC_EAN_EXTENSION).toString ());
-        }
-        Number orientation = (Number) metadata.get (ResultMetadataType.ORIENTATION);
-        if (orientation != null) {
-          intent.putExtra (Intents.Scan.RESULT_ORIENTATION, orientation.intValue ());
-        }
-        String ecLevel = (String) metadata.get (ResultMetadataType.ERROR_CORRECTION_LEVEL);
-        if (ecLevel != null) {
-          intent.putExtra (Intents.Scan.RESULT_ERROR_CORRECTION_LEVEL, ecLevel);
-        }
-        @SuppressWarnings ("unchecked")
-        Iterable<byte[]> byteSegments = (Iterable<byte[]>) metadata.get (ResultMetadataType.BYTE_SEGMENTS);
-        if (byteSegments != null) {
-          int i = 0;
-          for (byte[] byteSegment: byteSegments) {
-            intent.putExtra (Intents.Scan.RESULT_BYTE_SEGMENTS_PREFIX + i, byteSegment);
-            i++;
+          @Override
+          public void run () {
+            if (handler != null) {
+              handler.sendEmptyMessage (R.id.restart_preview);
+            }
           }
-        }
+        }, 1000);
+//        if (asyncPublishBarcode) {
+//          // publish scan result / possibly get feedback in return
+//          Intent publishScanResultIntent = new Intent (Scan.ACTION_RESULT);
+//          publishScanResultIntent.putExtra (Scan.RESULT, currentResult);
+//          FeedbackReceiver receiver = new FeedbackReceiver (new Handler ());
+//          receiver.setReceiver (this);
+//          publishScanResultIntent.putExtra ("receiver", receiver);
+//          this.startService (publishScanResultIntent);
+//        }
+      } else {
+        applyScanResult (rawResult);
       }
-      sendReplyMessage (R.id.return_scan_result, intent, resultDurationMS);
 
     } else if (source == IntentSource.PRODUCT_SEARCH_LINK) {
 
@@ -775,22 +807,27 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       // TLD as the scan URL.
       int end = sourceUrl.lastIndexOf ("/scan");
       String replyURL = sourceUrl.substring (0, end) + "?q=" + resultHandler.getDisplayContents () + "&source=zxing";
-      sendReplyMessage (R.id.launch_product_query, replyURL, resultDurationMS);
+      sendReplyMessage (R.id.launch_product_query, replyURL);
 
     } else if (source == IntentSource.ZXING_LINK) {
 
       if (scanFromWebPageManager != null && scanFromWebPageManager.isScanFromWebPage ()) {
         String replyURL = scanFromWebPageManager.buildReplyURL (rawResult, resultHandler);
         scanFromWebPageManager = null;
-        sendReplyMessage (R.id.launch_product_query, replyURL, resultDurationMS);
+        sendReplyMessage (R.id.launch_product_query, replyURL);
       }
 
     }
   }
 
   private void sendReplyMessage (int id,
-                                 Object arg,
-                                 long delayMS) {
+                                 Object arg) {
+    long delayMS = getResultDurationMS ();
+    if (handler == null) {
+      // Bugfix: when called from #displayFrameworkBugMessageAndExit() this could be null
+      handler = new CaptureActivityHandler (this, decodeFormats, decodeHints, characterSet, cameraManager);
+    }
+
     if (handler != null) {
       Message message = Message.obtain (handler, id, arg);
       if (delayMS > 0L) {
@@ -899,5 +936,99 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
   public void drawViewfinder () {
     viewfinderView.drawViewfinder ();
+  }
+
+  public void onAddPressed (View view) {
+    applyScanResult (null);
+  }
+
+  public void onCancelPressed (View view) {
+    abortScan ();
+  }
+
+  /**
+   * finish multi-scan. send Intent with results of the current scan. Main activity can use this to "publish" scan
+   * results, e.g. via Javascript embedded into the current WebView.
+   */
+  private void applyScanResult (Result rawResult) {
+    // get comma-separated String from results list
+    StringBuilder resStr = new StringBuilder ();
+    for (String result: results) {
+      resStr.append (result).append (",");
+    }
+    String result = resStr.substring (0, resStr.length () - 1);
+
+    // Hand back whatever action they requested - this can be changed to Intents.Scan.ACTION when
+    // the deprecated intent is retired.
+    Intent intent = new Intent (getIntent ().getAction ());
+    intent.addFlags (Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+    intent.putExtra (Intents.Scan.RESULT, result);
+    intent.putExtra (Intents.Scan.RESULT_COUNT, results.size ());
+    intent.putExtra (Intents.Scan.MULTI_SCAN, isMultiScan ());
+    // how did the user finish scanning, ie. "CLOSE / FINISH" or "ABORT / CANCEL"
+    intent.putExtra (Intents.Scan.RESULT_ACTION, Intents.Scan.RESULT_ACTION_CLOSE);
+    if (rawResult != null) {
+      intent.putExtra (Intents.Scan.RESULT_FORMAT, rawResult.getBarcodeFormat ().toString ());
+      byte[] rawBytes = rawResult.getRawBytes ();
+      if (rawBytes != null && rawBytes.length > 0) {
+        intent.putExtra (Intents.Scan.RESULT_BYTES, rawBytes);
+      }
+      Map<ResultMetadataType, ?> metadata = rawResult.getResultMetadata ();
+      if (metadata != null) {
+        if (metadata.containsKey (ResultMetadataType.UPC_EAN_EXTENSION)) {
+          intent.putExtra (Intents.Scan.RESULT_UPC_EAN_EXTENSION,
+                           metadata.get (ResultMetadataType.UPC_EAN_EXTENSION).toString ());
+        }
+        Number orientation = (Number) metadata.get (ResultMetadataType.ORIENTATION);
+        if (orientation != null) {
+          intent.putExtra (Intents.Scan.RESULT_ORIENTATION, orientation.intValue ());
+        }
+        String ecLevel = (String) metadata.get (ResultMetadataType.ERROR_CORRECTION_LEVEL);
+        if (ecLevel != null) {
+          intent.putExtra (Intents.Scan.RESULT_ERROR_CORRECTION_LEVEL, ecLevel);
+        }
+        @SuppressWarnings ("unchecked")
+        Iterable<byte[]> byteSegments = (Iterable<byte[]>) metadata.get (ResultMetadataType.BYTE_SEGMENTS);
+        if (byteSegments != null) {
+          int i = 0;
+          for (byte[] byteSegment: byteSegments) {
+            intent.putExtra (Intents.Scan.RESULT_BYTE_SEGMENTS_PREFIX + i, byteSegment);
+            i++;
+          }
+        }
+      }
+    }
+    sendReplyMessage (R.id.return_scan_result, intent);
+
+  }
+
+  /**
+   * abort multi-scan
+   */
+  public void abortScan () {
+    setResult (RESULT_CANCELED);
+    finish ();
+  }
+
+  private boolean isMultiScan () {
+    return multiScan;
+  }
+
+  /**
+   * in multi-scan mode a user can scan multiple barcodes without leaving the scan view, until he presses the "ADD"
+   * (finish) or "CANCEL" button.
+   * 
+   * @param multiScan
+   */
+  private void setMultiScan (boolean multiScan) {
+    this.multiScan = multiScan;
+    if (this.multiScan) {
+      // show buttons to end or abort a multi-scan
+      btn_Cancel.setVisibility (View.VISIBLE);
+      // hint: "ADD" (finish) button will be displayed after first successful barcode scan
+    } else {
+      btn_Add.setVisibility (View.GONE);
+      btn_Cancel.setVisibility (View.GONE);
+    }
   }
 }
